@@ -31,7 +31,7 @@ class HuntService : Service() {
         startForeground(1, NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setContentTitle("Хапуга")
-            .setContentText("Охота включена")
+            .setContentText("Охота включена — Строгино")
             .setOngoing(true).build())
 
         if (projection == null && intent != null) {
@@ -71,19 +71,59 @@ class HuntService : Service() {
         }, handler)
     }
 
-    private fun scan(b: Bitmap, w: Int, h: Int) {
-        // v0.1: approximate central map ROI. Calibration comes next.
-        val x0 = (w * .08).toInt(); val x1 = (w * .92).toInt()
-        val y0 = (h * .16).toInt(); val y1 = (h * .78).toInt()
-        val hits = mutableListOf<Pair<Int,Int>>()
-        for (y in y0 until y1 step 8) for (x in x0 until x1 step 8) {
-            val c=b.getPixel(x,y)
-            val r=android.graphics.Color.red(c); val g=android.graphics.Color.green(c); val bl=android.graphics.Color.blue(c)
-            if (r > 115 && bl > 120 && r > g * 1.25 && bl > g * 1.25) hits += x to y
+    private fun inStroginoZone(nx: Double, ny: Double): Boolean {
+        // v0.2 fixed polygon calibrated from Lesha's WB Courier portrait map view.
+        // Normalized coordinates keep it stable across equivalent screen resolutions.
+        val polygon = arrayOf(
+            0.00 to 0.61,
+            0.13 to 0.57,
+            0.26 to 0.57,
+            0.38 to 0.61,
+            0.50 to 0.68,
+            0.64 to 0.72,
+            0.78 to 0.75,
+            0.93 to 0.77,
+            1.00 to 0.78,
+            1.00 to 0.91,
+            0.86 to 0.91,
+            0.72 to 0.88,
+            0.58 to 0.84,
+            0.44 to 0.80,
+            0.30 to 0.77,
+            0.16 to 0.74,
+            0.04 to 0.70
+        )
+        var inside = false
+        var j = polygon.lastIndex
+        for (i in polygon.indices) {
+            val xi=polygon[i].first; val yi=polygon[i].second
+            val xj=polygon[j].first; val yj=polygon[j].second
+            if (((yi > ny) != (yj > ny)) &&
+                (nx < (xj-xi) * (ny-yi) / (yj-yi) + xi)) inside = !inside
+            j=i
         }
+        return inside
+    }
+
+    private fun scan(b: Bitmap, w: Int, h: Int) {
+        val hits = mutableListOf<Pair<Int,Int>>()
+        for (y in 0 until h step 7) for (x in 0 until w step 7) {
+            if (!inStroginoZone(x.toDouble()/w, y.toDouble()/h)) continue
+            val c=b.getPixel(x,y)
+            val r=android.graphics.Color.red(c)
+            val g=android.graphics.Color.green(c)
+            val bl=android.graphics.Color.blue(c)
+            // WB marker purple: high red+blue, clearly lower green.
+            if (r > 130 && bl > 145 && r > g * 1.28 && bl > g * 1.28) hits += x to y
+        }
+
         val clusters=mutableListOf<Pair<Int,Int>>()
-        for (p in hits) if (clusters.none { abs(it.first-p.first)<55 && abs(it.second-p.second)<55 }) clusters += p
-        val isNew = previous.isNotEmpty() && clusters.any { p -> previous.none { q -> abs(q.first-p.first)<70 && abs(q.second-p.second)<70 } }
+        for (p in hits) if (clusters.none { abs(it.first-p.first)<58 && abs(it.second-p.second)<58 }) clusters += p
+
+        // First frame establishes baseline. Thereafter alert only for a newly appeared marker.
+        val isNew = previous.isNotEmpty() && clusters.any { p ->
+            previous.none { q -> abs(q.first-p.first)<72 && abs(q.second-p.second)<72 }
+        }
         if (isNew) sendBroadcast(Intent(ACTION_NEW_ORDER).setPackage(packageName))
         previous=clusters
     }
