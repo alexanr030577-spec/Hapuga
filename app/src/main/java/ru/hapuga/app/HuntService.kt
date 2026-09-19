@@ -54,6 +54,8 @@ class HuntService : Service() {
     private var pointer:PointerView?=null
     private var pointerRemove:Runnable?=null
     private var frameOverlay:FrameView?=null
+    private var frameLp:WindowManager.LayoutParams?=null
+    private var frameEditing=true
 
     private val queryReceiver=object:BroadcastReceiver(){
         override fun onReceive(c:Context?,i:Intent?){broadcastState()}
@@ -303,18 +305,30 @@ class HuntService : Service() {
                 onFrameChanged={l,t,r,b->
                     frameLeft=l; frameTop=t; frameRight=r; frameBottom=b
                 }
+                onDone={lockFrame()}
             }
             val lp=WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             )
-            try{wm.addView(v,lp);frameOverlay=v}catch(_:Exception){}
+            try{wm.addView(v,lp);frameOverlay=v;frameLp=lp;frameEditing=true}catch(_:Exception){}
+        }
+    }
+
+    private fun lockFrame(){
+        ui.post{
+            val v=frameOverlay?:return@post
+            val lp=frameLp?:return@post
+            if(!frameEditing)return@post
+            frameEditing=false
+            lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            try{(getSystemService(WINDOW_SERVICE) as WindowManager).updateViewLayout(v,lp)}catch(_:Exception){}
+            v.setLocked(true)
         }
     }
 
@@ -323,6 +337,8 @@ class HuntService : Service() {
             val v=frameOverlay?:return@post
             try{(getSystemService(WINDOW_SERVICE) as WindowManager).removeView(v)}catch(_:Exception){}
             frameOverlay=null
+            frameLp=null
+            frameEditing=false
         }
     }
 
@@ -333,12 +349,17 @@ class HuntService : Service() {
         private var downX=0f; private var downY=0f
         private var sl=0f; private var st=0f; private var sr=0f; private var sb=0f
         var onFrameChanged:((Float,Float,Float,Float)->Unit)?=null
+        var onDone:(()->Unit)?=null
+        private var locked=false
 
         private val shade=Paint().apply{color=Color.argb(220,0,0,0);style=Paint.Style.FILL}
         private val border=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.YELLOW;style=Paint.Style.STROKE;strokeWidth=6f}
         private val handle=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.YELLOW;style=Paint.Style.FILL}
+        private val donePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.YELLOW;style=Paint.Style.FILL}
+        private val doneText=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.BLACK;textSize=38f;textAlign=Paint.Align.CENTER;typeface=Typeface.DEFAULT_BOLD}
 
         fun setFrame(left:Float,top:Float,right:Float,bottom:Float){l=left;t=top;r=right;b=bottom;invalidate()}
+        fun setLocked(value:Boolean){locked=value;invalidate()}
 
         override fun onDraw(c:Canvas){
             val x1=width*l; val y1=height*t; val x2=width*r; val y2=height*b
@@ -347,13 +368,21 @@ class HuntService : Service() {
             c.drawRect(0f,y1,x1,y2,shade)
             c.drawRect(x2,y1,width.toFloat(),y2,shade)
             c.drawRect(x1,y1,x2,y2,border)
-            c.drawCircle(x2,y2,18f,handle)
+            if(!locked){
+                c.drawCircle(x2,y2,18f,handle)
+                val bx=width-190f; val by=90f
+                c.drawRoundRect(bx-145f,by-48f,bx+145f,by+48f,28f,28f,donePaint)
+                c.drawText("ГОТОВО",bx,by+13f,doneText)
+            }
         }
 
         override fun onTouchEvent(e:android.view.MotionEvent):Boolean{
             val x1=width*l; val y1=height*t; val x2=width*r; val y2=height*b
             when(e.actionMasked){
                 android.view.MotionEvent.ACTION_DOWN->{
+                    if(!locked && e.x>width-335f && e.x<width-45f && e.y>42f && e.y<138f){
+                        onDone?.invoke(); return true
+                    }
                     val nearHandle=abs(e.x-x2)<70f && abs(e.y-y2)<70f
                     val inside=e.x in x1..x2 && e.y in y1..y2
                     if(!nearHandle && !inside)return false
