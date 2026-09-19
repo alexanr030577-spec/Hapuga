@@ -1,7 +1,7 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android {
  namespace="ru.hapuga.app"; compileSdk=35
- defaultConfig { applicationId="ru.hapuga.app"; minSdk=26; targetSdk=35; versionCode=12; versionName="0.12-pointer-mapshift" }
+ defaultConfig { applicationId="ru.hapuga.app"; minSdk=26; targetSdk=35; versionCode=13; versionName="0.13-viewfinder" }
  compileOptions { sourceCompatibility=JavaVersion.VERSION_17; targetCompatibility=JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget="17" }
 }
