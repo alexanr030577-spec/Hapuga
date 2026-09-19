@@ -18,8 +18,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var status: TextView
     private var tts: TextToSpeech? = null
 
-    private val orderReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) = alert()
+    private val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                HuntService.ACTION_NEW_ORDER -> alert()
+                HuntService.ACTION_DIAGNOSTIC -> {
+                    val n = intent.getIntExtra(HuntService.EXTRA_MARKER_COUNT, 0)
+                    status.text = "Охота включена • меток: $n"
+                }
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,14 +48,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onStart() {
         super.onStart()
-        val f = IntentFilter(HuntService.ACTION_NEW_ORDER)
-        if (Build.VERSION.SDK_INT >= 33) registerReceiver(orderReceiver, f, RECEIVER_NOT_EXPORTED)
-        else @Suppress("DEPRECATION") registerReceiver(orderReceiver, f)
+        val f = IntentFilter().apply {
+            addAction(HuntService.ACTION_NEW_ORDER)
+            addAction(HuntService.ACTION_DIAGNOSTIC)
+        }
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(receiver, f, RECEIVER_NOT_EXPORTED)
+        else @Suppress("DEPRECATION") registerReceiver(receiver, f)
     }
 
     override fun onStop() {
         super.onStop()
-        try { unregisterReceiver(orderReceiver) } catch (_: Exception) {}
+        try { unregisterReceiver(receiver) } catch (_: Exception) {}
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -57,7 +68,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 .putExtra(HuntService.EXTRA_RESULT_CODE, resultCode)
                 .putExtra(HuntService.EXTRA_DATA, data)
             startForegroundService(i)
-            status.text = "Охота включена"
+            status.text = "Охота включена • ищу метки…"
         }
     }
 
