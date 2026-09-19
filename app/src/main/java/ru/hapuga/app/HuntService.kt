@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Typeface
 import android.graphics.PixelFormat
 import android.media.ImageReader
 import android.media.projection.MediaProjection
@@ -112,7 +113,7 @@ class HuntService : Service() {
     private fun startCapture(code:Int,data:Intent){
         projection=getSystemService(MediaProjectionManager::class.java).getMediaProjection(code,data)
         projection?.registerCallback(object:MediaProjection.Callback(){
-            override fun onStop(){projection=null;broadcastState();stopSelf()}
+            override fun onStop(){projection=null;hidePointer();hideFrame();broadcastState();stopSelf()}
         },handler)
 
         val dm=resources.displayMetrics
@@ -297,6 +298,9 @@ class HuntService : Service() {
 
     private fun showFrame(){
         if(!Settings.canDrawOverlays(this))return
+        val p=getSharedPreferences("frame",MODE_PRIVATE)
+        frameLeft=p.getFloat("l",frameLeft); frameTop=p.getFloat("t",frameTop)
+        frameRight=p.getFloat("r",frameRight); frameBottom=p.getFloat("b",frameBottom)
         ui.post{
             if(frameOverlay!=null)return@post
             val wm=getSystemService(WINDOW_SERVICE) as WindowManager
@@ -304,6 +308,8 @@ class HuntService : Service() {
                 setFrame(frameLeft,frameTop,frameRight,frameBottom)
                 onFrameChanged={l,t,r,b->
                     frameLeft=l; frameTop=t; frameRight=r; frameBottom=b
+                    getSharedPreferences("frame",MODE_PRIVATE).edit()
+                        .putFloat("l",l).putFloat("t",t).putFloat("r",r).putFloat("b",b).apply()
                 }
                 onDone={lockFrame()}
             }
