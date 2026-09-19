@@ -4,5 +4,5 @@
 <TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="Охота выключена" android:textSize="20sp"/>
 <Button android:id="@+id/huntButton" android:layout_width="match_parent" android:layout_height="72dp" android:layout_marginTop="30dp" android:text="ОХОТА" android:textSize="24sp"/>
 <Button android:id="@+id/testButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="ТЕСТ СИГНАЛА"/>
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="v0.3 — Строгино"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="v0.4 — диагностика"/>
 </LinearLayout>
