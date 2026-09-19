@@ -5,6 +5,9 @@ import android.app.Activity
 import android.content.*
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
 import android.os.*
 import android.speech.tts.TextToSpeech
 import android.widget.Button
@@ -45,7 +48,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if(running) {
                 startService(Intent(this,HuntService::class.java).setAction(HuntService.ACTION_STOP))
                 setRunning(false)
-            } else startActivityForResult(projectionManager.createScreenCaptureIntent(),42)
+            } else {
+                if(!Settings.canDrawOverlays(this)){
+                    Toast.makeText(this,"Разреши Хапуге показывать стрелку поверх WB, потом нажми ОХОТА ещё раз",Toast.LENGTH_LONG).show()
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                } else {
+                    startActivityForResult(projectionManager.createScreenCaptureIntent(),42)
+                }
+            }
         }
         findViewById<Button>(R.id.testButton).setOnClickListener{alert()}
     }
