@@ -1,15 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:gravity="center" android:padding="28dp">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="ХАПУГА" android:textSize="36sp" android:textStyle="bold"/>
-    <TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_marginTop="18dp" android:text="Охота выключена" android:textSize="20sp"/>
-    <Button android:id="@+id/huntButton" android:layout_width="match_parent" android:layout_height="72dp"
-        android:layout_marginTop="30dp" android:text="ОХОТА" android:textSize="24sp"/>
-    <Button android:id="@+id/testButton" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="18dp" android:text="ТЕСТ СИГНАЛА"/>
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_marginTop="24dp" android:text="v0.1 — Строгино"/>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center" android:padding="28dp">
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ХАПУГА" android:textSize="36sp" android:textStyle="bold"/>
+<TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="Охота выключена" android:textSize="20sp"/>
+<Button android:id="@+id/huntButton" android:layout_width="match_parent" android:layout_height="72dp" android:layout_marginTop="30dp" android:text="ОХОТА" android:textSize="24sp"/>
+<Button android:id="@+id/testButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="ТЕСТ СИГНАЛА"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="v0.3 — Строгино"/>
 </LinearLayout>
