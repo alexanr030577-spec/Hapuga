@@ -27,7 +27,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 HuntService.ACTION_NEW_ORDER -> alert()
                 HuntService.ACTION_DIAGNOSTIC -> {
                     val n=intent.getIntExtra(HuntService.EXTRA_MARKER_COUNT,0)
-                    running=true; status.text="Охота включена • меток: $n"; huntButton.text="СТОП"
+                    val p=intent.getIntExtra(HuntService.EXTRA_PURPLE_COUNT,0)
+                    running=true; status.text="Охота • фиолетовых точек: $p • меток: $n"; huntButton.text="СТОП"
                 }
             }
         }
