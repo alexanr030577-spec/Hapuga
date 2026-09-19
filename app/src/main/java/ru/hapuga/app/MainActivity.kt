@@ -52,7 +52,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onStart(){
         super.onStart()
-        val f=IntentFilter().apply{addAction(HuntService.ACTION_STATE);addAction(HuntService.ACTION_NEW_ORDER);addAction(HuntService.ACTION_DIAGNOSTIC)}
+        val f=IntentFilter().apply{addAction(HuntService.ACTION_STATE);addAction(HuntService.ACTION_DIAGNOSTIC)}
         if(Build.VERSION.SDK_INT>=33) registerReceiver(receiver,f,RECEIVER_NOT_EXPORTED) else @Suppress("DEPRECATION") registerReceiver(receiver,f)
         sendBroadcast(Intent(HuntService.ACTION_QUERY_STATE).setPackage(packageName))
     }
