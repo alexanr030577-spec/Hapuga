@@ -36,3 +36,11 @@ jobs:
         run: |
           gh release view garage >/dev/null 2>&1 || gh release create garage --title "Hapuga Garage" --notes "Always-current test APK."
           gh release upload garage Hapuga-latest.apk --clobber
+
+      - name: Publish test garage
+        if: github.ref == 'refs/heads/zone-filter-v010'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view garage-test >/dev/null 2>&1 || gh release create garage-test --title "Hapuga Test Garage" --notes "Always-current experimental APK."
+          gh release upload garage-test Hapuga-latest.apk --clobber
