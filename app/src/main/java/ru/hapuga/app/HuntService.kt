@@ -41,12 +41,11 @@ class HuntService : Service() {
     private var baselineReady=false
     private var lastDiagnostic=0L
 
-    // Screen-space shift of the map relative to the reference view.
-    // This lets the drawn geographic zone move together with the map after Hunt starts.
-    private var zoneShiftX=0
-    private var zoneShiftY=0
-    private var anchors:List<Anchor>?=null
-    private var lastMotionCheck=0L
+    // Movable screen-space viewfinder. Only markers inside it are considered.
+    private var frameLeft=.10f
+    private var frameTop=.20f
+    private var frameRight=.90f
+    private var frameBottom=.76f
 
     private val handlerThread=HandlerThread("hapuga-capture").apply{start()}
     private val handler=Handler(handlerThread.looper)
@@ -54,6 +53,7 @@ class HuntService : Service() {
 
     private var pointer:PointerView?=null
     private var pointerRemove:Runnable?=null
+    private var frameOverlay:FrameView?=null
 
     private val queryReceiver=object:BroadcastReceiver(){
         override fun onReceive(c:Context?,i:Intent?){broadcastState()}
@@ -100,8 +100,8 @@ class HuntService : Service() {
         reader?.close(); reader=null
         projection?.stop(); projection=null
         seen.clear(); baselineReady=false
-        anchors=null; zoneShiftX=0; zoneShiftY=0
         hidePointer()
+        hideFrame()
         stopForeground(STOP_FOREGROUND_REMOVE)
         broadcastState()
         stopSelf()
@@ -119,6 +119,7 @@ class HuntService : Service() {
         reader=ImageReader.newInstance(w,h,PixelFormat.RGBA_8888,2)
         projection?.createVirtualDisplay("Hapuga",w,h,dm.densityDpi,0,reader!!.surface,null,handler)
 
+        showFrame()
         reader?.setOnImageAvailableListener({r->
             val image=r.acquireLatestImage()?:return@setOnImageAvailableListener
             try{
@@ -132,31 +133,10 @@ class HuntService : Service() {
         },handler)
     }
 
-    // Reference zone for the current Strogino working area.
-    // Unlike v0.10, it is shifted on screen together with detected map panning.
-    private fun inBaseZone(nx:Double,ny:Double):Boolean{
-        val p=arrayOf(
-            .18 to .10,.31 to .075,.48 to .08,.63 to .10,.74 to .14,.82 to .20,
-            .87 to .30,.88 to .42,.88 to .54,.88 to .63,.85 to .69,.80 to .72,
-            .73 to .735,.65 to .74,.58 to .73,.52 to .705,.45 to .69,.38 to .68,
-            .30 to .65,.22 to .62,.15 to .57,.10 to .51,.075 to .43,.08 to .35,
-            .10 to .27,.12 to .19
-        )
-        var inside=false
-        var j=p.lastIndex
-        for(i in p.indices){
-            val xi=p[i].first; val yi=p[i].second
-            val xj=p[j].first; val yj=p[j].second
-            if((yi>ny)!=(yj>ny) && nx < (xj-xi)*(ny-yi)/(yj-yi)+xi)inside=!inside
-            j=i
-        }
-        return inside
-    }
-
-    private fun inZone(x:Int,y:Int,w:Int,h:Int):Boolean{
-        val nx=(x-zoneShiftX).toDouble()/w
-        val ny=(y-zoneShiftY).toDouble()/h
-        return inBaseZone(nx,ny)
+    private fun inFrame(x:Int,y:Int,w:Int,h:Int):Boolean{
+        val nx=x.toFloat()/w
+        val ny=y.toFloat()/h
+        return nx>=frameLeft && nx<=frameRight && ny>=frameTop && ny<=frameBottom
     }
 
     private fun purple(c:Int):Boolean{
@@ -169,75 +149,12 @@ class HuntService : Service() {
         return r>185 && g>185 && b>185 && abs(r-g)<45 && abs(g-b)<45
     }
 
-    private fun gray(c:Int):Int=(Color.red(c)*30+Color.green(c)*59+Color.blue(c)*11)/100
-
-    private fun buildAnchors(bm:Bitmap,w:Int,h:Int):List<Anchor>{
-        val out=ArrayList<Anchor>()
-        val x0=(w*.06).toInt(); val x1=(w*.78).toInt()
-        val y0=(h*.13).toInt(); val y1=(h*.75).toInt()
-        var y=y0
-        while(y<y1){
-            var x=x0
-            while(x<x1){
-                val c=bm.getPixel(x,y)
-                val g=gray(c)
-                // Avoid very flat white/black areas and purple order markers.
-                if(!purple(c) && g in 55..238)out+=Anchor(x,y,g)
-                x+=26
-            }
-            y+=26
-        }
-        return out
-    }
-
-    private fun updateMapMotion(bm:Bitmap,w:Int,h:Int,now:Long){
-        if(now-lastMotionCheck<550)return
-        lastMotionCheck=now
-        val prev=anchors
-        if(prev!=null && prev.size>80){
-            var bestDx=0; var bestDy=0
-            var bestScore=Double.MAX_VALUE
-
-            var dy=-120
-            while(dy<=120){
-                var dx=-120
-                while(dx<=120){
-                    var sum=0L; var count=0
-                    for(a in prev){
-                        val xx=a.x+dx; val yy=a.y+dy
-                        if(xx<2||yy<2||xx>=w-2||yy>=h-2)continue
-                        val c=bm.getPixel(xx,yy)
-                        if(purple(c))continue
-                        sum+=abs(gray(c)-a.gray)
-                        count++
-                    }
-                    if(count>80){
-                        val score=sum.toDouble()/count
-                        if(score<bestScore){bestScore=score;bestDx=dx;bestDy=dy}
-                    }
-                    dx+=12
-                }
-                dy+=12
-            }
-
-            // Low score means the same map background was found at a shifted location.
-            // Reject scene changes (another WB screen, loading panel, etc).
-            if(bestScore<19.0 && (abs(bestDx)>=12 || abs(bestDy)>=12)){
-                zoneShiftX=(zoneShiftX+bestDx).coerceIn(-w,w)
-                zoneShiftY=(zoneShiftY+bestDy).coerceIn(-h,h)
-            }
-        }
-        anchors=buildAnchors(bm,w,h)
-    }
-
     private fun scan(bm:Bitmap,w:Int,h:Int){
         val now=SystemClock.elapsedRealtime()
-        updateMapMotion(bm,w,h,now)
-
         val cand=mutableListOf<Pair<Int,Int>>()
         for(y in 25 until h-25 step 9){
             for(x in 25 until w-25 step 9){
-                if(y<h*.08 || y>h*.90 || !inZone(x,y,w,h))continue
+                if(y<h*.08 || y>h*.90 || !inFrame(x,y,w,h))continue
                 var pn=0; var ln=0
                 for(dy in -21..21 step 7){
                     for(dx in -21..21 step 7){
@@ -376,6 +293,93 @@ class HuntService : Service() {
         }
     }
 
+    private fun showFrame(){
+        if(!Settings.canDrawOverlays(this))return
+        ui.post{
+            if(frameOverlay!=null)return@post
+            val wm=getSystemService(WINDOW_SERVICE) as WindowManager
+            val v=FrameView(this).apply{
+                setFrame(frameLeft,frameTop,frameRight,frameBottom)
+                onFrameChanged={l,t,r,b->
+                    frameLeft=l; frameTop=t; frameRight=r; frameBottom=b
+                }
+            }
+            val lp=WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            try{wm.addView(v,lp);frameOverlay=v}catch(_:Exception){}
+        }
+    }
+
+    private fun hideFrame(){
+        ui.post{
+            val v=frameOverlay?:return@post
+            try{(getSystemService(WINDOW_SERVICE) as WindowManager).removeView(v)}catch(_:Exception){}
+            frameOverlay=null
+        }
+    }
+
+    private class FrameView(ctx:Context):View(ctx){
+        private var l=.10f; private var t=.20f; private var r=.90f; private var b=.76f
+        private var drag=false
+        private var resize=false
+        private var downX=0f; private var downY=0f
+        private var sl=0f; private var st=0f; private var sr=0f; private var sb=0f
+        var onFrameChanged:((Float,Float,Float,Float)->Unit)?=null
+
+        private val shade=Paint().apply{color=Color.argb(220,0,0,0);style=Paint.Style.FILL}
+        private val border=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.YELLOW;style=Paint.Style.STROKE;strokeWidth=6f}
+        private val handle=Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.YELLOW;style=Paint.Style.FILL}
+
+        fun setFrame(left:Float,top:Float,right:Float,bottom:Float){l=left;t=top;r=right;b=bottom;invalidate()}
+
+        override fun onDraw(c:Canvas){
+            val x1=width*l; val y1=height*t; val x2=width*r; val y2=height*b
+            c.drawRect(0f,0f,width.toFloat(),y1,shade)
+            c.drawRect(0f,y2,width.toFloat(),height.toFloat(),shade)
+            c.drawRect(0f,y1,x1,y2,shade)
+            c.drawRect(x2,y1,width.toFloat(),y2,shade)
+            c.drawRect(x1,y1,x2,y2,border)
+            c.drawCircle(x2,y2,18f,handle)
+        }
+
+        override fun onTouchEvent(e:android.view.MotionEvent):Boolean{
+            val x1=width*l; val y1=height*t; val x2=width*r; val y2=height*b
+            when(e.actionMasked){
+                android.view.MotionEvent.ACTION_DOWN->{
+                    val nearHandle=abs(e.x-x2)<70f && abs(e.y-y2)<70f
+                    val inside=e.x in x1..x2 && e.y in y1..y2
+                    if(!nearHandle && !inside)return false
+                    resize=nearHandle; drag=!nearHandle
+                    downX=e.x; downY=e.y; sl=l;st=t;sr=r;sb=b
+                    return true
+                }
+                android.view.MotionEvent.ACTION_MOVE->{
+                    if(resize){
+                        r=(sr+(e.x-downX)/width).coerceIn(l+.18f,.98f)
+                        b=(sb+(e.y-downY)/height).coerceIn(t+.18f,.90f)
+                    }else if(drag){
+                        val dx=(e.x-downX)/width; val dy=(e.y-downY)/height
+                        val fw=sr-sl; val fh=sb-st
+                        l=(sl+dx).coerceIn(.02f,.98f-fw); r=l+fw
+                        t=(st+dy).coerceIn(.08f,.90f-fh); b=t+fh
+                    }
+                    onFrameChanged?.invoke(l,t,r,b); invalidate(); return true
+                }
+                android.view.MotionEvent.ACTION_UP,android.view.MotionEvent.ACTION_CANCEL->{
+                    drag=false;resize=false;onFrameChanged?.invoke(l,t,r,b);return true
+                }
+            }
+            return false
+        }
+    }
+
     private fun createChannel(){
         if(Build.VERSION.SDK_INT>=26)
             getSystemService(NotificationManager::class.java)
@@ -388,6 +392,7 @@ class HuntService : Service() {
         projection?.stop()
         tts?.shutdown()
         hidePointer()
+        hideFrame()
         handlerThread.quitSafely()
         super.onDestroy()
     }
