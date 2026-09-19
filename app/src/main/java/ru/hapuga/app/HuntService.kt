@@ -20,7 +20,8 @@ class HuntService : Service() {
         const val EXTRA_MARKER_COUNT="markerCount"; const val EXTRA_PURPLE_COUNT="purpleCount"; const val EXTRA_RUNNING="running"; const val CHANNEL="hunt"
     }
     private var projection:MediaProjection?=null; private var reader:ImageReader?=null; private var tts:TextToSpeech?=null
-    private data class Seen(val x:Int,val y:Int,var lastSeen:Long)\n    private val seen=mutableListOf<Seen>(); private var baselineReady=false; private var lastDiagnostic=0L
+    private data class Seen(val x:Int,val y:Int,var lastSeen:Long)
+    private val seen=mutableListOf<Seen>(); private var baselineReady=false; private var lastDiagnostic=0L
     private val handlerThread=HandlerThread("hapuga-capture").apply{start()}; private val handler=Handler(handlerThread.looper)
     private val queryReceiver=object:BroadcastReceiver(){override fun onReceive(c:Context?,i:Intent?){broadcastState()}}
 
